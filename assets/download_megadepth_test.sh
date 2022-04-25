@@ -1,4 +1,4 @@
-conda activate dense_matching_env
+conda activate sslgrasp
 cd data/
 mkdir megadepth_test_set
 gdown https://drive.google.com/uc?id=1SikcOvCJ-zznOyCRJCTGtpKtTp01Jx5g

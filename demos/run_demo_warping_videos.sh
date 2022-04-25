@@ -21,12 +21,13 @@ model=PDCNet_plus
 pre_trained_model=megadepth
 global_optim_iter=3
 local_optim_iter=7
-path_to_pre_trained_models=/cluster/work/cvl/truongp/DenseMatching/pre_trained_models/
+# path_to_pre_trained_models=/cluster/work/cvl/truongp/DenseMatching/pre_trained_models/
+path_to_pre_trained_models=./pre_trained_models
 
 confident_mask_type=proba_interval_1_above_50
 
 # define where to save the outputs
-save_dir=/cluster/scratch/truongp/DAVIS_demo/    #evaluation
+save_dir=./output/DAVIS_demo/    #evaluation
 
 echo "Running demo.."
 python demos/demo_warping_videos.py --save_video --mask_uncertain_regions \
