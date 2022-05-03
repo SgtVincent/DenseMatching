@@ -11,3 +11,7 @@ admin/local.py
 # datasets and output
 data/
 evaluation/
+camel/
+output/
+
+

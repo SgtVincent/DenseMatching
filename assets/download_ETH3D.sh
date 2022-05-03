@@ -1,4 +1,4 @@
-conda activate dense_matching_env
+conda activate sslgrasp
 mkdir -p data
 cd data/
 mkdir ETH3D

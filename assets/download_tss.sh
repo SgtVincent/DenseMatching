@@ -1,4 +1,4 @@
-conda activate dense_matching_env
+conda activate sslgrasp
 mkdir -p data
 cd data/
 gdown https://drive.google.com/uc?id=0B-VxeI7PlJE1U3FyTGVpbUFtcjg
