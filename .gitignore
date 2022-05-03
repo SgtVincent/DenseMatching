@@ -7,3 +7,7 @@
 **qsublogs
 **qsub_logs
 admin/local.py
+
+# dataset and output
+camel/
+output/
