@@ -7,3 +7,7 @@
 **qsublogs
 **qsub_logs
 admin/local.py
+
+# datasets and output
+data/
+evaluation/
