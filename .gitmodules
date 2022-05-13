@@ -1,3 +1,4 @@
 [submodule "third_party/GOCor"]
 	path = third_party/GOCor
 	url = https://github.com/PruneTruong/GOCor
+	ignore=dirty

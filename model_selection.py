@@ -43,6 +43,8 @@ model_type = ['GLUNet', 'GLUNet_interp',
               ]
 pre_trained_model_types = ['static', 'dynamic', 'chairs_things', 'chairs_things_ft_sintel', 'megadepth',
                            'megadepth_stage1', 'pfpascal', 'spair']
+fine_tuned_model_types = ['ndf_from_WS_pfpascal']
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -70,8 +72,9 @@ def select_model(model_name, pre_trained_model_type, arguments, global_optim_ite
         print('GOCor: Global iter {}'.format(global_optim_iter))
 
     if pre_trained_model_type not in pre_trained_model_types:
-        raise ValueError(
-            'The pre trained model that you chose does not exist, you chose {}'.format(pre_trained_model_types))
+        if pre_trained_model_type not in fine_tuned_model_types:
+            raise ValueError(
+                'The pre trained model that you chose does not exist, you chose {}'.format(pre_trained_model_types))
 
     estimate_uncertainty = False
     if model_name == 'GLUNet':

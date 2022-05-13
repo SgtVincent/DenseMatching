@@ -8,6 +8,10 @@
 **qsub_logs
 admin/local.py
 
+# IDEA
+.idea/
+.vscode/
+
 # datasets and output
 data/
 evaluation/
