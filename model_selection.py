@@ -1,14 +1,19 @@
-from models.GLUNet.GLU_Net import GLUNetModel
-from models.PWCNet.pwc_net import PWCNetModel
-from models.PDCNet.PDCNet import PDCNet_vgg16
-from models.GLUNet.Semantic_GLUNet import SemanticGLUNetModel
+import os.path as osp
+import torch
+import os
+
+CUDA = torch.cuda.is_available()
+if CUDA: # non-cuda mode throws error 
+    from models.GLUNet.GLU_Net import GLUNetModel
+    from models.PWCNet.pwc_net import PWCNetModel
+    from models.PDCNet.PDCNet import PDCNet_vgg16
+    from models.GLUNet.Semantic_GLUNet import SemanticGLUNetModel
 from models.semantic_matching_models.SFNet import SFNet, SFNetWithBin
 from models.semantic_matching_models.NCNet import NCNetWithBin, ImMatchNet
 from models.semantic_matching_models.cats import CATs
 from models.semantic_matching_models.DHPF.dhpf import DynamicHPF
-import os.path as osp
-import torch
-import os
+
+
 
 
 def load_network(net, checkpoint_path=None, **kwargs):
@@ -43,9 +48,14 @@ model_type = ['GLUNet', 'GLUNet_interp',
               ]
 pre_trained_model_types = ['static', 'dynamic', 'chairs_things', 'chairs_things_ft_sintel', 'megadepth',
                            'megadepth_stage1', 'pfpascal', 'spair']
-fine_tuned_model_types = ['ndf_from_WS_pfpascal']
+fine_tuned_model_types = ['ndf_from_SS_pfpascal','ndf_from_WS_pfpascal']
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # either gpu or cpu
+
+# if CUDA:
+#     device = torch.device("cuda")
+# else:
+#     device = torch.device("cpu")
 
 
 def select_model(model_name, pre_trained_model_type, arguments, global_optim_iter, local_optim_iter,

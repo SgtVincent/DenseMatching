@@ -200,7 +200,7 @@ conda activate dense_matching_env
 
 * Install all dependencies (except for cupy, see below) by running the following command:
 ```bash
-pip install numpy opencv-python torch torchvision matplotlib imageio jpeg4py scipy pandas tqdm gdown pycocotools
+pip install numpy opencv-python torch torchvision matplotlib imageio jpeg4py scipy pandas tqdm gdown pycocotools timm
 ```
 
 **Note**: CUDA is required to run the code. Indeed, the correlation layer is implemented in CUDA using CuPy, 
