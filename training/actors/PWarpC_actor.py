@@ -550,14 +550,14 @@ class ModelWithTripletAndPairWiseProbabilisticWarpConsistency(BaseActor):
 
         if not training:
             if self.best_value_based_on_loss:
-                stats['best_value'] = - stats['w_bipath_pck_0.1'] if 'P_w_bipath' in dict_proba_matrices.keys() else \
+                stats['best_value'] = - stats['pw_bipath_pck_0.1'] if 'P_w_bipath' in dict_proba_matrices.keys() else \
                         - stats['pwarp_supervision_pck_0.1']
             else:
                 if 'flow_map_target_to_source' in list(mini_batch.keys()):
                     stats['best_value'] = - stats['real_gt_pck_0.1']
                     # we want PCK to increase but best_value must decrease
                 else:
-                    stats['best_value'] = - stats['w_bipath_pck_0.1'] if 'P_w_bipath' in dict_proba_matrices.keys() else \
+                    stats['best_value'] = - stats['pw_bipath_pck_0.1'] if 'P_w_bipath' in dict_proba_matrices.keys() else \
                         - stats['pwarp_supervision_pck_0.1']
         return loss, stats
 

@@ -2,14 +2,17 @@ import os
 import torch
 import argparse
 import imageio
+
 from matplotlib import pyplot as plt
 from utils_flow.pixel_wise_mapping import remap_using_flow_fields
 import cv2
 from model_selection import select_model
 from utils_flow.util_optical_flow import flow_to_image
-from utils_flow.visualization_utils import overlay_semantic_mask
+from utils_flow.visualization_utils import overlay_semantic_mask,make_sparse_matching_plot
 import numpy as np
 from validation.test_parser import define_model_parser
+from validation.utils import matches_from_flow
+
 
 
 def pad_to_same_shape(im1, im2):
@@ -31,6 +34,17 @@ def pad_to_same_shape(im1, im2):
 
     return im1, im2
 
+def crop_image_according_to_mask(img,mask,tol = 10):
+    object_mask = np.bitwise_not(np.isin(mask,[0,1,2,255]))
+    h,w = mask.shape
+    indices = np.argwhere(object_mask)
+    y_min = max(min(indices[:,0]) - tol,0)
+    y_max = min(max(indices[:,0]) + tol, h)
+    x_min = max(min(indices[:,1]) - tol,0)
+    x_max = min(max(indices[:, 1]) + tol, w)
+    cropped = img[y_min:y_max,x_min:x_max]
+    return cropped,(y_min,y_max,x_min,x_max)
+
 
 # Argument parsing
 def boolean_string(s):
@@ -39,7 +53,7 @@ def boolean_string(s):
     return s == 'True'
 
 
-def test_model_on_image_pair(args, query_image, reference_image):
+def test_model_on_image_pair(args, query_image, reference_image,contact_pixels = None):
     with torch.no_grad():
         network, estimate_uncertainty = select_model(
             args.model, args.pre_trained_model, args, args.optim_iter, local_optim_iter,
@@ -100,7 +114,11 @@ def test_model_on_image_pair(args, query_image, reference_image):
             axis[4].imshow(confidence_map, vmin=0.0, vmax=1.0)
             axis[4].set_title('Confident regions')
         else:
-            fig, axis = plt.subplots(1, 4, figsize=(30, 30))
+            if not args.path_reference_object:
+                fig, axis = plt.subplots(1, 4, figsize=(30, 30))
+            else:
+                contact_pts_matching = match_contact_points(query_image, reference_image,estimated_flow,contact_pixels)
+                fig, axis = plt.subplots(1, 5, figsize=(30, 30))
             axis[2].imshow(warped_query_image)
             axis[2].set_title(
                 'Warped query image according to estimated flow by {}_{}'.format(args.model, args.pre_trained_model))
@@ -111,12 +129,51 @@ def test_model_on_image_pair(args, query_image, reference_image):
 
         axis[3].imshow(flow_to_image(estimated_flow_numpy))
         axis[3].set_title('Estimated flow {}_{}'.format(args.model, args.pre_trained_model))
+
+        if args.path_reference_object:
+            axis[-1].imshow(contact_pts_matching)
+            axis[-1].set_title('Contact points matching')
+
         fig.savefig(
             os.path.join(args.save_dir, 'Warped_query_image_{}_{}.png'.format(args.model, args.pre_trained_model)),
             bbox_inches='tight')
+        plt.show()
         plt.close(fig)
         print('Saved image!')
+        return estimated_flow
 
+
+def project_points_to_pixels(pts, ext_mat, int_mat):
+    pts = np.array(pts)
+    pts_homo = np.concatenate(
+        [pts, np.ones((pts.shape[0], 1))], axis=1)  # (N,4)
+    proj_mat = int_mat @ ext_mat[:3, :]
+    pix_homo = proj_mat @ pts_homo.T  # (3, N)
+    pixels = (pix_homo[:2, :] / pix_homo[2, :]).T  # (N, 2)
+
+    return pixels
+
+def match_contact_points(query_image,reference_image,estimated_flow,contact_pixels):
+    mask = np.zeros(estimated_flow.shape[-2:], dtype=int)[np.newaxis, ...]
+    mask_indices = contact_pixels.astype(int)[:, [1, 0]]  # (x,y) -> (row, col)
+    mask[:, mask_indices[:, 0], mask_indices[:, 1]] = 1
+    mask = torch.tensor(mask, device=estimated_flow.device) == 1
+    # print(estimated_flow.shape)
+    # print(mask.shape)
+    mkpts_q, mkpts_r = matches_from_flow(estimated_flow, mask)
+    # print(mkpts_q)
+    # print(mkpts_r)
+
+    confidence_values = np.ones(mkpts_q.shape[0])
+    import matplotlib.cm as cm
+    color = cm.jet(confidence_values)
+    out = make_sparse_matching_plot(
+        query_image, reference_image, mkpts_q, mkpts_r, color, margin=10)
+
+    # plt.figure(figsize=(16, 8))
+    # plt.imshow(out)
+    # plt.show()
+    return out
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Test models on a pair of images')
@@ -126,10 +183,17 @@ if __name__ == "__main__":
                         help='Path to the source image.', required=True)
     parser.add_argument('--path_reference_image', type=str,
                         help='Path to the target image.', required=True)
+    parser.add_argument('--path_query_image_mask', type=str, default = '',
+                        help='Path to the source image mask.', required=False)
+    parser.add_argument('--path_reference_image_mask', type=str, default = '',
+                        help='Path to the target image mask.', required=False)
+    parser.add_argument('--path_reference_object',type = str,default = '')
+    parser.add_argument('--visualize_images',default = False,action = 'store_true')
     parser.add_argument('--save_dir', type=str, required=True,
                         help='Directory where to save output figure.')
     parser.add_argument('--save_ind_images', dest='save_ind_images',  default=False, type=boolean_string,
                         help='Save individual images? ')
+
     args = parser.parse_args()
 
     torch.cuda.empty_cache()
@@ -149,9 +213,64 @@ if __name__ == "__main__":
     try:
         query_image = cv2.imread(args.path_query_image, 1)[:, :, ::- 1]
         reference_image = cv2.imread(args.path_reference_image, 1)[:, :, ::- 1]
+
+        if args.visualize_images:
+            fig,axis = plt.subplots(1,2)
+            axis[0].imshow(query_image)
+            axis[0].set_title('Query image')
+            axis[1].imshow(reference_image)
+            axis[1].set_title('Reference image')
+            plt.show()
+
+        if args.path_query_image_mask:
+            query_image_mask = cv2.imread(args.path_query_image_mask,cv2.IMREAD_GRAYSCALE)
+            query_image,query_cropbox = crop_image_according_to_mask(query_image,query_image_mask)
+        if args.path_reference_image_mask:
+            reference_image_mask = cv2.imread(args.path_reference_image_mask,cv2.IMREAD_GRAYSCALE)
+            reference_image,reference_cropbox = crop_image_according_to_mask(reference_image,reference_image_mask)
+        if args.path_query_image_mask and args.path_reference_image_mask and args.visualize_images:
+            # print(query_image.shape)
+            # print(reference_image.shape)
+            fig, axis = plt.subplots(1, 2)
+            axis[0].imshow(query_image)
+            axis[0].set_title('Query image (cropped)')
+            axis[1].imshow(reference_image)
+            axis[1].set_title('Reference image (cropped)')
+            plt.show()
+
     except:
         raise ValueError('It seems that the path for the images you provided does not work ! ')
 
-    test_model_on_image_pair(args, query_image, reference_image)
+    if args.path_reference_object:
+        ref_cam_idx = int(args.path_reference_image.split('.png')[0][-1])
+        assert ref_cam_idx in range(4), f'Wrong cam id {ref_cam_idx}'
+
+        demo_data = np.load(args.path_reference_object, allow_pickle=True)
+
+        int_mats = demo_data['intrinsic_matrices']
+        ext_mats = demo_data['extrinsic_matrices']
+
+        int_mat = int_mats[ref_cam_idx]
+        ext_mat = ext_mats[ref_cam_idx]
+        # in pybullet format https://docs.google.com/document/d/10sXEhzFRSnvFcl3XxNGhnD4N2SedqwdAvK3dsihxVUA/edit#heading=h.cb0co8y2vuvc
+        contact_pts_pybullet = demo_data['contact_points']
+        contact_pts = [pts_pybullet[5] for pts_pybullet in contact_pts_pybullet]
+        print(f"contact points: {contact_pts}")
+
+    if args.path_reference_object:
+        contact_pixels = project_points_to_pixels(contact_pts, ext_mat, int_mat)
+        if args.path_reference_image_mask:
+            contact_pixels[:, 0] -= reference_cropbox[2]
+            contact_pixels[:, 1] -= reference_cropbox[0]
+            if args.visualize_images:
+                plt.scatter(x=contact_pixels[:, 0],
+                            y=contact_pixels[:, 1], s=10, c='red', marker='o')
+                plt.imshow(reference_image)
+                plt.show()
+
+    estimated_flow = test_model_on_image_pair(args, query_image, reference_image,contact_pixels)
+    # if args.path_reference_object:
+    #     match_contact_points(query_image, reference_image,estimated_flow,contact_pixels)
+
 
 

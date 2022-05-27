@@ -72,6 +72,58 @@ def random_crop(img, kps, bbox, size=(256, 256), p=0.5):
     return resized_img, resized_kps, resized_bbx
 
 
+# add for ndf
+def resize_image(img, bbox, size=(256, 256)):
+    """
+    Args:
+        img: HxWx3, numpy array
+        size:
+
+    Returns:
+    """
+    h, w = img.shape[:2]
+    resized_img = cv2.resize(img, dsize=(size[1], size[0]), interpolation=cv2.INTER_LINEAR)
+
+    resized_bbx = bbox.clone()
+    resized_bbx[0::2] = resized_bbx[0::2].float() * size[1] / w
+    resized_bbx[1::2] = resized_bbx[1::2].float() * size[0] / h
+
+    return resized_img,resized_bbx
+
+
+def random_crop_image(img, bbox, size=(256, 256), p=0.5):
+    """
+    Args:
+        img: HxWx3, numpy array
+        size:
+
+    Returns:
+
+    """
+    if random.uniform(0, 1) > p:
+        return resize_image(img, bbox, size)
+
+    h, w = img.shape[:2]
+
+    left = random.randint(0, max(0, bbox[0]))
+    top = random.randint(0, max(0, bbox[1]))
+    height = random.randint(min(bbox[3], h), h) - top
+    width = random.randint(min(bbox[2], w), w) - left
+
+    try:
+        resized_img = img[top: top + height, left: left + width]
+        resized_img = cv2.resize(resized_img, dsize=(size[1], size[0]), interpolation=cv2.INTER_LINEAR)
+
+        resized_bbx = bbox.clone()
+        resized_bbx[0::2] = (bbox[0::2] - left) * (size[1] / width)
+        resized_bbx[1::2] = (bbox[1::2] - top) * (size[0] / height)
+    except:
+        resized_img = img
+        resized_bbx = bbox
+
+    return resized_img,resized_bbx
+
+
 class SemanticKeypointsDataset(Dataset):
     """Parent class of PFPascal, PFWillow, Caltech, and SPair"""
 
@@ -102,8 +154,14 @@ class SemanticKeypointsDataset(Dataset):
                       'Layout/large',
                       'JPEGImages',
                       'PairAnnotation',
-                      'bbox')
+                      'bbox'),
+            'ndf': (os.path.basename(root),
+                    '_pairs_ndf.csv',
+                    'images',
+                    'masks',
+                    'img'),
         }
+
         root = os.path.dirname(root)  # remove the last name
 
         default_conf = {
@@ -128,7 +186,7 @@ class SemanticKeypointsDataset(Dataset):
 
         # Directory path for train, val, or test splits
         base_path = os.path.join(os.path.abspath(root), self.metadata[benchmark][0])
-        if benchmark == 'pfpascal':
+        if benchmark == 'pfpascal' or benchmark == 'ndf':
             self.spt_path = os.path.join(base_path, split + self.metadata[benchmark][1])
         elif benchmark == 'spair':
             self.spt_path = os.path.join(base_path, self.metadata[benchmark][1], split + '.txt')
@@ -205,9 +263,11 @@ class SemanticKeypointsDataset(Dataset):
         batch['target_image'] = trg_numpy
 
         # Key-points (re-scaled)
-        batch['source_kps'], num_pts = self.get_points(self.src_kps, idx, batch['src_imsize_ori'])  # Nx2
-        batch['target_kps'], _ = self.get_points(self.trg_kps, idx, batch['trg_imsize_ori'])  # Nx2
-        batch['n_pts'] = torch.tensor(num_pts)
+        # modified for ndf
+        if (hasattr(self, 'annotated') and self.annotated) or (not hasattr(self, 'annotated')):
+            batch['source_kps'], num_pts = self.get_points(self.src_kps, idx, batch['src_imsize_ori'])  # Nx2
+            batch['target_kps'], _ = self.get_points(self.trg_kps, idx, batch['trg_imsize_ori'])  # Nx2
+            batch['n_pts'] = torch.tensor(num_pts)
 
         # The number of pairs in training split
         batch['datalen'] = len(self.train_data)
@@ -368,8 +428,10 @@ class SemanticKeypointsDataset(Dataset):
         batch['trg_bbox'][0] = batch['target_image'].shape[1] - batch['trg_bbox'][2]
         batch['trg_bbox'][2] = batch['target_image'].shape[1] - tmp
 
-        batch['source_kps'][:batch['n_pts'], 0] = batch['source_image'].shape[1] - batch['source_kps'][:batch['n_pts'], 0]
-        batch['target_kps'][:batch['n_pts'], 0] = batch['target_image'].shape[1] - batch['target_kps'][:batch['n_pts'], 0]
+        batch['source_kps'][:batch['n_pts'], 0] = batch['source_image'].shape[1] - batch['source_kps'][:batch['n_pts'],
+                                                                                   0]
+        batch['target_kps'][:batch['n_pts'], 0] = batch['target_image'].shape[1] - batch['target_kps'][:batch['n_pts'],
+                                                                                   0]
 
         batch['source_image'] = np.flip(batch['source_image'], 1)
         batch['target_image'] = np.flip(batch['target_image'], 1)

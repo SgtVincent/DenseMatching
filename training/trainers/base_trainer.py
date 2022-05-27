@@ -187,6 +187,7 @@ class BaseTrainer:
         actor_type = type(self.actor).__name__
         net_type = type(net).__name__
 
+        resume = True
         if checkpoint is None:
             # Load most recent checkpoint
             checkpoint_list = sorted(glob.glob('{}/{}/{}_ep*.pth.tar'.format(self._base_save_dir,
@@ -210,13 +211,19 @@ class BaseTrainer:
                     raise Exception('No checkpoint found')
             else:
                 checkpoint_path = os.path.expanduser(checkpoint)
+                resume = False
+
         else:
             raise TypeError
 
         # Load network
+        print('current epoch: ',self.epoch)
+        print('load checkpoint from ', checkpoint_path)
         checkpoint_dict = torch.load(checkpoint_path, map_location='cpu')
+        checkpoint_net_type = checkpoint_dict['net_type']
 
-        assert net_type == checkpoint_dict['net_type'], 'Network is not of correct type.'
+        assert net_type == checkpoint_net_type or checkpoint_net_type in net_type, \
+            f'Network is not of correct type: Current --> {net_type} ; Checkpoint --> {checkpoint_net_type}'
 
         if fields is None:
             fields = checkpoint_dict.keys()
@@ -235,7 +242,8 @@ class BaseTrainer:
             if key == 'state_dict':
                 net.load_state_dict(checkpoint_dict[key])
             elif key == 'optimizer':
-                self.optimizer.load_state_dict(checkpoint_dict[key])
+                if checkpoint_dict[key]:
+                    self.optimizer.load_state_dict(checkpoint_dict[key])
                 '''
                 # now individually transfer the optimizer parts...
                 for state in optimizer.state.values():
@@ -245,6 +253,13 @@ class BaseTrainer:
             else:
                 setattr(self, key, checkpoint_dict[key])
 
+        if not resume:
+            self.epoch = 0
+            self.stats = {}
+            self.best_val = float("Inf")  # absolute best val, to know when to save the checkpoint.
+            self.epoch_of_best_val = 0
+
+        print('current epoch: ', self.epoch)
         # Set the net info
         if load_constructor and 'constructor' in checkpoint_dict and checkpoint_dict['constructor'] is not None:
             net.constructor = checkpoint_dict['constructor']

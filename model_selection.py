@@ -47,15 +47,14 @@ model_type = ['GLUNet', 'GLUNet_interp',
               # 'DHPF', 'PWarpCDHPF_SS'
               ]
 pre_trained_model_types = ['static', 'dynamic', 'chairs_things', 'chairs_things_ft_sintel', 'megadepth',
-                           'megadepth_stage1', 'pfpascal', 'spair']
-fine_tuned_model_types = ['ndf_from_SS_pfpascal','ndf_from_WS_pfpascal']
+                           'megadepth_stage1', 'pfpascal', 'spair','ndf_from_WS_pfpascal',
+                           'ndf_from_SS_pfpascal','ndf_from_imagenet_pretrained',
+                           'ndf_from_WS_pfpascal_cropped',
+                           'ndf_from_SS_pfpascal_cropped', 'ndf_from_imagenet_pretrained_cropped',
+                           'ndf_from_WS_pfpascal_precrop',
+                           'ndf_from_SS_pfpascal_precrop', 'ndf_from_imagenet_pretrained_precrop']
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # either gpu or cpu
-
-# if CUDA:
-#     device = torch.device("cuda")
-# else:
-#     device = torch.device("cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def select_model(model_name, pre_trained_model_type, arguments, global_optim_iter, local_optim_iter,
@@ -82,9 +81,8 @@ def select_model(model_name, pre_trained_model_type, arguments, global_optim_ite
         print('GOCor: Global iter {}'.format(global_optim_iter))
 
     if pre_trained_model_type not in pre_trained_model_types:
-        if pre_trained_model_type not in fine_tuned_model_types:
-            raise ValueError(
-                'The pre trained model that you chose does not exist, you chose {}'.format(pre_trained_model_types))
+        raise ValueError(
+            'The pre trained model that you chose does not exist, you chose {}'.format(pre_trained_model_types))
 
     estimate_uncertainty = False
     if model_name == 'GLUNet':

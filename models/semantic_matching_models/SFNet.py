@@ -535,8 +535,12 @@ class SFNetWithBin(nn.Module):
 
         bin_model_dict = OrderedDict(
                 [(k.replace('bin_model.', ''), v) for k, v in state_dict.items() if 'bin_model.' in k])
-        self.matching_model.load_state_dict(matching_model_dict, strict)
-        self.bin_model.load_state_dict(bin_model_dict, strict)
+
+        if len(matching_model_dict.keys()): # load from WS pretrained
+            self.matching_model.load_state_dict(matching_model_dict, strict)
+            self.bin_model.load_state_dict(bin_model_dict, strict)
+        else: # load from SS pretrained
+            self.matching_model.load_state_dict(state_dict, strict)
 
     def set_epoch(self, epoch):
         self.epoch = epoch
